@@ -1,0 +1,276 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+<title>Vibe Coding 檔案匯整</title>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f6f8;
+padding:40px;
+}
+
+.container{
+background:white;
+padding:30px;
+border-radius:10px;
+box-shadow:0px 0px 10px rgba(0,0,0,0.1);
+}
+
+h1{
+color:#2c3e50;
+}
+
+button{
+padding:10px 20px;
+background:#3498db;
+color:white;
+border:none;
+border-radius:5px;
+cursor:pointer;
+margin-right:10px;
+}
+
+button:hover{
+background:#2980b9;
+}
+
+table{
+border-collapse:collapse;
+margin-top:20px;
+}
+
+td,th{
+border:1px solid #ccc;
+padding:8px;
+}
+
+select{
+padding:6px;
+margin-right:10px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Vibe Coding 檔案匯整</h1>
+
+<p>請選擇多個 Excel 檔案</p>
+
+<input type="file" id="excelFiles" multiple>
+
+<br><br>
+
+<button onclick="mergeExcel()">合併檔案</button>
+<button onclick="downloadExcel()">下載合併結果</button>
+
+<h3>合併結果 (前5筆)</h3>
+
+<table id="previewTable"></table>
+
+<hr>
+
+<h3>資料分析</h3>
+
+分類欄位：
+<select id="categoryColumn"></select>
+
+統計欄位：
+<select id="valueColumn"></select>
+
+<button onclick="drawChart()">產生直條圖</button>
+
+<br><br>
+
+<canvas id="chartCanvas"></canvas>
+
+</div>
+
+<script>
+
+let mergedData = []
+let chart
+
+function mergeExcel(){
+
+const files=document.getElementById("excelFiles").files
+
+if(files.length==0){
+alert("請選擇Excel檔案")
+return
+}
+
+mergedData=[]
+let readCount=0
+
+for(let file of files){
+
+const reader=new FileReader()
+
+reader.onload=function(e){
+
+const data=new Uint8Array(e.target.result)
+
+const workbook=XLSX.read(data,{type:'array'})
+
+const sheet=workbook.Sheets[workbook.SheetNames[0]]
+
+const json=XLSX.utils.sheet_to_json(sheet)
+
+json.forEach(row=>{
+row["來源檔案"]=file.name
+mergedData.push(row)
+})
+
+readCount++
+
+if(readCount===files.length){
+showPreview()
+setupColumns()
+}
+
+}
+
+reader.readAsArrayBuffer(file)
+
+}
+
+}
+
+function showPreview(){
+
+const table=document.getElementById("previewTable")
+
+table.innerHTML=""
+
+if(mergedData.length==0) return
+
+const headers=Object.keys(mergedData[0])
+
+let headerRow="<tr>"
+
+headers.forEach(h=>{
+headerRow+="<th>"+h+"</th>"
+})
+
+headerRow+="</tr>"
+
+table.innerHTML+=headerRow
+
+mergedData.slice(0,5).forEach(row=>{
+
+let tr="<tr>"
+
+headers.forEach(h=>{
+tr+="<td>"+(row[h]||"")+"</td>"
+})
+
+tr+="</tr>"
+
+table.innerHTML+=tr
+
+})
+
+}
+
+function setupColumns(){
+
+const headers=Object.keys(mergedData[0])
+
+const category=document.getElementById("categoryColumn")
+const value=document.getElementById("valueColumn")
+
+category.innerHTML=""
+value.innerHTML=""
+
+headers.forEach(h=>{
+
+let opt1=document.createElement("option")
+opt1.value=h
+opt1.text=h
+category.appendChild(opt1)
+
+let opt2=document.createElement("option")
+opt2.value=h
+opt2.text=h
+value.appendChild(opt2)
+
+})
+
+}
+
+function drawChart(){
+
+const category=document.getElementById("categoryColumn").value
+const value=document.getElementById("valueColumn").value
+
+let result={}
+
+mergedData.forEach(row=>{
+
+const key=row[category]
+const val=parseFloat(row[value]) || 0
+
+if(!result[key]) result[key]=0
+
+result[key]+=val
+
+})
+
+const labels=Object.keys(result)
+const values=Object.values(result)
+
+const ctx=document.getElementById("chartCanvas")
+
+if(chart) chart.destroy()
+
+chart=new Chart(ctx,{
+
+type:'bar',
+
+data:{
+labels:labels,
+datasets:[{
+label:value,
+data:values,
+backgroundColor:'#3498db'
+}]
+}
+
+})
+
+}
+
+function downloadExcel(){
+
+if(mergedData.length==0){
+alert("沒有資料")
+return
+}
+
+const worksheet=XLSX.utils.json_to_sheet(mergedData)
+
+const workbook=XLSX.utils.book_new()
+
+XLSX.utils.book_append_sheet(workbook,worksheet,"Merged")
+
+XLSX.writeFile(workbook,"merged_result.xlsx")
+
+}
+
+</script>
+
+</body>
+</html>
